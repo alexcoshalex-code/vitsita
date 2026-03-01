@@ -210,7 +210,7 @@ export default function App() {
           </section>
 
           {/* Обо мне */}
-           <section className="py-24 px-6 bg-black">
+          <section className="py-24 px-6 bg-[#111111]">
             <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-16 items-center">
               <FadeIn delay={200}>
                 <div className="aspect-4/5 bg-linear-to-tr from-zinc-800 to-zinc-900 rounded-3xl relative overflow-hidden group">
@@ -224,7 +224,11 @@ export default function App() {
                 </div>
               </FadeIn>
               <FadeIn delay={400}>
-                <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-8">Кто я?</h2>
+                {/* Изменено: добавлен новый абзац и уменьшен отступ у заголовка */}
+                <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">Кто я?</h2>
+                <p className="text-2xl md:text-3xl font-medium text-white mb-8">
+                  Я Вита. Предприниматель и мама.
+                </p>
                 <div className="space-y-6 text-lg text-zinc-400 font-light leading-relaxed">
                   <p>
                     Я прошла путь от хаоса к четкой системе. Мой подход — это баланс между железной дисциплиной и любовью к себе.
