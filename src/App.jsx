@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronRight, Download, CheckCircle, ArrowRight, Instagram, Send, ShieldCheck, Star } from 'lucide-react';
-import { supabase, getDownloadLink } from './supabaseClient'; // 👈 импортируем нашу функцию
+import { supabase, getDownloadLink } from './supabaseClient';
 
 // --- Компонент плавной анимации (FadeIn) ---
 const FadeIn = ({ children, delay = 0 }) => {
@@ -17,8 +17,6 @@ const FadeIn = ({ children, delay = 0 }) => {
   );
 };
 
-// ❌ Локальная функция getDownloadLink удалена – теперь используем импортированную из supabaseClient
-
 export default function App() {
   // Состояния роутинга: 'home' | 'processing' | 'yookassa_mock' | 'success'
   const [view, setView] = useState('home');
@@ -27,6 +25,9 @@ export default function App() {
   const [currentOrderId, setCurrentOrderId] = useState(null);
   const [downloadUrl, setDownloadUrl] = useState(null);
   const [isCheckingPayment, setIsCheckingPayment] = useState(false);
+  
+  // 👇 Новое состояние для email пользователя
+  const [email, setEmail] = useState('');
 
   // --- Диагностика переменных окружения Supabase ---
   useEffect(() => {
@@ -41,19 +42,24 @@ export default function App() {
 
   // Создание заказа и переход к имитации оплаты
   const handleBuyClick = async () => {
+    // 👇 Валидация email
+    if (!email.includes('@') || !email.includes('.')) {
+      alert("Пожалуйста, введи корректный email");
+      return;
+    }
+    
     setView('processing');
     
     try {
-      // Вставляем запись о заказе и получаем её ID
+      // 👇 Используем введённый email вместо test@example.com
       const { data, error } = await supabase
         .from('orders')
-        .insert([{ email: 'test@example.com', amount: 290, status: 'pending' }])
+        .insert([{ email: email, amount: 290, status: 'pending' }])
         .select();
 
       if (error) {
         console.error('❌ Ошибка БД при создании заказа:', error.message);
-        // В реальном проекте можно показать уведомление пользователю
-        // Пока просто покажем ошибку и вернёмся на главную
+        alert('Не удалось создать заказ. Попробуй позже или напиши в поддержку.');
         setView('home');
         return;
       }
@@ -69,6 +75,7 @@ export default function App() {
       }, 1500);
     } catch (err) {
       console.error('🔥 Неожиданная ошибка при создании заказа:', err);
+      alert('Произошла ошибка. Обнови страницу и попробуй снова.');
       setView('home');
     }
   };
@@ -78,7 +85,6 @@ export default function App() {
     setView('processing');
 
     if (currentOrderId) {
-      // Обновляем статус заказа в базе данных
       const { error } = await supabase
         .from('orders')
         .update({ status: 'paid' })
@@ -94,7 +100,6 @@ export default function App() {
       console.warn('⚠️ currentOrderId отсутствует при оплате');
     }
 
-    // Переходим на страницу успеха
     setTimeout(() => {
       setView('success');
     }, 1000);
@@ -119,17 +124,23 @@ export default function App() {
 
           if (data?.status === 'paid') {
             console.log('✅ Заказ оплачен, генерируем временную ссылку');
-            // Используем импортированную функцию getDownloadLink (асинхронную)
             try {
-              const url = await getDownloadLink('pixar_guide.pdf'); // замените на актуальное имя файла
-              setDownloadUrl(url);
+              // 👇 Убедись, что имя файла точно совпадает с тем, что в бакете Supabase (регистр важен!)
+              const url = await getDownloadLink('pixar_guide.pdf');
+              // 👇 Проверяем, что ссылка действительно получена (не undefined и не null)
+              if (url) {
+                setDownloadUrl(url);
+                console.log("🔗 Ссылка получена:", url);
+              } else {
+                throw new Error("Файл 'pixar_guide.pdf' не найден в бакете 'guides'");
+              }
             } catch (linkErr) {
               console.error('❌ Ошибка получения ссылки на скачивание:', linkErr);
-              // Можно показать сообщение пользователю, что ссылка временно недоступна
+              // Можно показать сообщение пользователю, но оставляем кнопку неактивной
+              alert('Не удалось получить ссылку на файл. Пожалуйста, свяжись с поддержкой.');
             }
           } else {
             console.log('⏳ Статус заказа не оплачен:', data?.status);
-            // Можно показать сообщение об ошибке или предложить обратиться в поддержку
           }
         } catch (err) {
           console.error('🔥 Неожиданная ошибка при проверке оплаты:', err);
@@ -148,6 +159,7 @@ export default function App() {
     setCurrentOrderId(null);
     setDownloadUrl(null);
     setIsCheckingPayment(false);
+    setEmail(''); // 👆 Очищаем email при возврате (опционально)
   };
 
   return (
@@ -261,6 +273,17 @@ export default function App() {
                     <p className="text-xl md:text-2xl font-medium text-zinc-400">
                       Начните творить уже сегодня!
                     </p>
+                  </div>
+
+                  {/* 👇 Поле ввода email */}
+                  <div className="space-y-4 mb-8">
+                    <input 
+                      type="email" 
+                      placeholder="Твой email для получения гайда"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:outline-hidden focus:border-white/30 transition-colors text-white placeholder-zinc-500"
+                    />
                   </div>
 
                   <div className="pt-8 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-8">
