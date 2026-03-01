@@ -210,7 +210,7 @@ export default function App() {
           </section>
 
           {/* Обо мне */}
-          <section className="py-24 px-6 bg-[#111111]">
+           <section className="py-24 px-6 bg-black">
             <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-16 items-center">
               <FadeIn delay={200}>
                 <div className="aspect-4/5 bg-linear-to-tr from-zinc-800 to-zinc-900 rounded-3xl relative overflow-hidden group">
