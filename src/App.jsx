@@ -214,9 +214,12 @@ export default function App() {
             <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-16 items-center">
               <FadeIn delay={200}>
                 <div className="aspect-4/5 bg-linear-to-tr from-zinc-800 to-zinc-900 rounded-3xl relative overflow-hidden group">
-                  <div className="absolute inset-0 flex items-center justify-center text-zinc-600 font-medium">
-                    [ Эстетичное фото ]
-                  </div>
+                  {/* Заменяем текстовую заглушку на реальное изображение */}
+                  <img 
+                    src="https://cbyesmbtzzjyxacxfjob.supabase.co/storage/v1/object/public/public-assets/me.jpg" 
+                    alt="Алексей" 
+                    className="absolute inset-0 w-full h-full object-cover" 
+                  />
                   <div className="absolute top-0 -left-full w-1/2 h-full bg-linear-to-r from-transparent via-white/5 to-transparent skew-x-[-20deg] group-hover:left-[200%] transition-all duration-1000 ease-in-out"></div>
                 </div>
               </FadeIn>
@@ -430,6 +433,6 @@ export default function App() {
         </div>
       )}
 
-    </div>//
+    </div>
   );
 }
