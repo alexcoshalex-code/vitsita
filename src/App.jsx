@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronRight, Download, CheckCircle, ArrowRight, Instagram, Send, ShieldCheck, Star } from 'lucide-react';
+import { supabase } from './supabaseClient';
 
 // --- Компонент плавной анимации (FadeIn) ---
 const FadeIn = ({ children, delay = 0 }) => {
@@ -16,38 +17,118 @@ const FadeIn = ({ children, delay = 0 }) => {
   );
 };
 
+// Функция получения публичной ссылки на файл из Supabase Storage
+const getDownloadLink = (fileName) => {
+  const { data } = supabase.storage.from('guides').getPublicUrl(fileName);
+  return data.publicUrl;
+};
+
 export default function App() {
   // Состояния роутинга: 'home' | 'processing' | 'yookassa_mock' | 'success'
   const [view, setView] = useState('home');
+  
+  // Состояния для работы с заказом
+  const [currentOrderId, setCurrentOrderId] = useState(null);
+  const [downloadUrl, setDownloadUrl] = useState(null);
+  const [isCheckingPayment, setIsCheckingPayment] = useState(false);
 
-  // Имитация вызова API ЮKassa
-  const handleBuyClick = () => {
+  // Создание заказа и переход к имитации оплаты
+  const handleBuyClick = async () => {
     setView('processing');
-    // Имитируем запрос к нашему Node.js API (1.5 секунды)
-    setTimeout(() => {
-      setView('yookassa_mock');
-    }, 1500);
+    
+    try {
+      // Вставляем запись о заказе и получаем её ID
+      const { data, error } = await supabase
+        .from('orders')
+        .insert([{ email: 'test@example.com', amount: 290, status: 'pending' }])
+        .select();
+
+      if (error) {
+        console.log('Ошибка БД:', error.message);
+        // В реальном проекте здесь можно показать уведомление пользователю
+        setView('home');
+        return;
+      }
+
+      if (data && data.length > 0) {
+        setCurrentOrderId(data[0].id);
+      }
+      
+      // Имитируем запрос к нашему Node.js API (1.5 секунды)
+      setTimeout(() => {
+        setView('yookassa_mock');
+      }, 1500);
+    } catch (err) {
+      console.error('Неожиданная ошибка:', err);
+      setView('home');
+    }
   };
 
   // Имитация успешной оплаты на стороне ЮKassa
-  const handleMockPayment = () => {
+  const handleMockPayment = async () => {
     setView('processing');
+
+    if (currentOrderId) {
+      // Обновляем статус заказа в базе данных
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: 'paid' })
+        .eq('id', currentOrderId);
+
+      if (error) {
+        console.error('Ошибка обновления статуса заказа:', error.message);
+        // Даже при ошибке можно показать success, но лучше уведомить пользователя
+      }
+    }
+
+    // Переходим на страницу успеха
     setTimeout(() => {
       setView('success');
     }, 1000);
   };
 
-  // Генерация фейкового файла для скачивания
-  const handleDownload = () => {
-    const element = document.createElement("a");
-    const file = new Blob([
-      "Привет! Это твой PDF-гайд от Нейромастерской.\n\nЗдесь будет реальный контент гайда: дизайн, верстка и полезная информация.\nСпасибо за покупку!"
-    ], { type: 'text/plain' });
-    element.href = URL.createObjectURL(file);
-    element.download = "Guide_by_Neuromasterskaya.txt"; // В реальном проекте будет .pdf
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
+  // Проверка статуса оплаты на странице успеха
+  useEffect(() => {
+    if (view === 'success' && currentOrderId) {
+      const checkPayment = async () => {
+        setIsCheckingPayment(true);
+        try {
+          const { data, error } = await supabase
+            .from('orders')
+            .select('status')
+            .eq('id', currentOrderId)
+            .single();
+
+          if (error) {
+            console.error('Ошибка проверки статуса:', error.message);
+            return;
+          }
+
+          if (data?.status === 'paid') {
+            // Генерируем ссылку на файл гайда
+            const url = getDownloadLink('pixar_guide.pdf'); // Замените на актуальное имя файла
+            setDownloadUrl(url);
+          } else {
+            console.log('Статус заказа не оплачен:', data?.status);
+            // Можно показать сообщение об ошибке или предложить обратиться в поддержку
+          }
+        } catch (err) {
+          console.error('Неожиданная ошибка при проверке оплаты:', err);
+        } finally {
+          setIsCheckingPayment(false);
+        }
+      };
+      
+      checkPayment();
+    }
+  }, [view, currentOrderId]);
+
+  // Сброс состояния при возврате на главную
+  const handleReturnHome = () => {
+    setView('home');
+    setCurrentOrderId(null);
+    setDownloadUrl(null);
+    setIsCheckingPayment(false);
   };
 
   return (
@@ -56,7 +137,7 @@ export default function App() {
       {/* --- НАВИГАЦИЯ --- */}
       <nav className="fixed top-0 w-full z-50 bg-black/50 backdrop-blur-md border-b border-white/10">
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
-          <span className="text-xl font-semibold tracking-tighter cursor-pointer" onClick={() => setView('home')}>
+          <span className="text-xl font-semibold tracking-tighter cursor-pointer" onClick={handleReturnHome}>
             НЕЙРОМАСТЕРСКАЯ.
           </span>
           <div className="flex gap-4">
@@ -73,8 +154,7 @@ export default function App() {
         <main className="pt-16">
           {/* Hero Section */}
           <section className="relative min-h-[90vh] flex flex-col items-center justify-center text-center px-6 overflow-hidden">
-            {/* Декоративный градиент на фоне */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-zinc-800/30 rounded-full blur-[120px] -z-10 pointer-events-none"></div>
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-150 h-150 bg-zinc-800/30 rounded-full blur-[120px] -z-10 pointer-events-none"></div>
             
             <FadeIn delay={100}>
               <h1 className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-bold tracking-tighter mb-6">
@@ -102,13 +182,11 @@ export default function App() {
           <section className="py-24 px-6 bg-[#111111]">
             <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-16 items-center">
               <FadeIn delay={200}>
-                {/* Заглушка для фото */}
-                <div className="aspect-[4/5] bg-gradient-to-tr from-zinc-800 to-zinc-900 rounded-3xl relative overflow-hidden group">
+                <div className="aspect-4/5 bg-linear-to-tr from-zinc-800 to-zinc-900 rounded-3xl relative overflow-hidden group">
                   <div className="absolute inset-0 flex items-center justify-center text-zinc-600 font-medium">
                     [ Эстетичное фото ]
                   </div>
-                  {/* Эффект блика */}
-                  <div className="absolute top-0 left-[-100%] w-1/2 h-full bg-gradient-to-r from-transparent via-white/5 to-transparent skew-x-[-20deg] group-hover:left-[200%] transition-all duration-1000 ease-in-out"></div>
+                  <div className="absolute top-0 -left-full w-1/2 h-full bg-linear-to-r from-transparent via-white/5 to-transparent skew-x-[-20deg] group-hover:left-[200%] transition-all duration-1000 ease-in-out"></div>
                 </div>
               </FadeIn>
               <FadeIn delay={400}>
@@ -137,7 +215,7 @@ export default function App() {
 
               <FadeIn delay={300}>
                 <div className="bg-[#1d1d1f]/50 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-12 relative overflow-hidden">
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-zinc-500 to-transparent"></div>
+                  <div className="absolute top-0 left-0 w-full h-1 bg-linear-to-r from-transparent via-zinc-500 to-transparent"></div>
                   
                   <h3 className="text-2xl font-semibold mb-8">Что внутри гайда?</h3>
                   
@@ -209,7 +287,7 @@ export default function App() {
         </div>
       )}
 
-      {/* --- ИМИТАЦИЯ ОКНА ЮKASSA (Только для демонстрации) --- */}
+      {/* --- ИМИТАЦИЯ ОКНА ЮKASSA --- */}
       {view === 'yookassa_mock' && (
         <div className="h-screen flex items-center justify-center p-6 bg-[#f5f5f5] text-black transition-colors duration-500">
           <FadeIn>
@@ -239,7 +317,7 @@ export default function App() {
               </button>
               
               <button 
-                onClick={() => setView('home')}
+                onClick={handleReturnHome}
                 className="w-full mt-4 py-4 text-gray-400 hover:text-gray-600 font-medium transition-colors text-sm"
               >
                 Отменить и вернуться
@@ -249,9 +327,9 @@ export default function App() {
         </div>
       )}
 
-      {/* --- СТРАНИЦА УСПЕХА (/success) --- */}
+      {/* --- СТРАНИЦА УСПЕХА --- */}
       {view === 'success' && (
-        <div className="h-screen flex flex-col items-center justify-center text-center px-6 bg-gradient-to-b from-[#111] to-black">
+        <div className="h-screen flex flex-col items-center justify-center text-center px-6 bg-linear-to-b from-[#111] to-black">
           <FadeIn delay={100}>
             <div className="w-24 h-24 bg-white/10 rounded-full flex items-center justify-center mb-8 mx-auto">
               <CheckCircle size={48} className="text-white" />
@@ -269,12 +347,24 @@ export default function App() {
 
           <FadeIn delay={500}>
             <div className="flex flex-col sm:flex-row gap-4">
-              <button 
-                onClick={handleDownload}
-                className="px-8 py-4 bg-white text-black rounded-full font-medium hover:scale-105 transition-transform duration-300 flex items-center justify-center gap-3 text-lg"
-              >
-                <Download size={20} /> Скачать гайд
-              </button>
+              {isCheckingPayment ? (
+                <div className="px-8 py-4 bg-zinc-800 text-zinc-400 rounded-full font-medium flex items-center justify-center gap-3 text-lg">
+                  <div className="w-5 h-5 border-2 border-zinc-600 border-t-white rounded-full animate-spin"></div>
+                  Проверка оплаты...
+                </div>
+              ) : downloadUrl ? (
+                <a
+                  href={downloadUrl}
+                  download
+                  className="px-8 py-4 bg-white text-black rounded-full font-medium hover:scale-105 transition-transform duration-300 flex items-center justify-center gap-3 text-lg"
+                >
+                  <Download size={20} /> Скачать гайд
+                </a>
+              ) : (
+                <div className="px-8 py-4 bg-zinc-800 text-zinc-400 rounded-full font-medium flex items-center justify-center gap-3 text-lg cursor-not-allowed">
+                  <Download size={20} /> Ссылка временно недоступна
+                </div>
+              )}
               
               <a 
                 href="https://t.me/your_channel" 
@@ -289,7 +379,7 @@ export default function App() {
           
           <FadeIn delay={800}>
              <button 
-                onClick={() => setView('home')}
+                onClick={handleReturnHome}
                 className="mt-16 text-zinc-500 hover:text-white transition-colors border-b border-transparent hover:border-white pb-1"
               >
                 Вернуться на главную
