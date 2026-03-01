@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronRight, Download, CheckCircle, ArrowRight, Instagram, Send, ShieldCheck, Star } from 'lucide-react';
-import { supabase } from './supabaseClient';
+import { supabase, getDownloadLink } from './supabaseClient'; // 👈 импортируем нашу функцию
 
 // --- Компонент плавной анимации (FadeIn) ---
 const FadeIn = ({ children, delay = 0 }) => {
@@ -17,11 +17,7 @@ const FadeIn = ({ children, delay = 0 }) => {
   );
 };
 
-// Функция получения публичной ссылки на файл из Supabase Storage
-const getDownloadLink = (fileName) => {
-  const { data } = supabase.storage.from('guides').getPublicUrl(fileName);
-  return data.publicUrl;
-};
+// ❌ Локальная функция getDownloadLink удалена – теперь используем импортированную из supabaseClient
 
 export default function App() {
   // Состояния роутинга: 'home' | 'processing' | 'yookassa_mock' | 'success'
@@ -31,6 +27,17 @@ export default function App() {
   const [currentOrderId, setCurrentOrderId] = useState(null);
   const [downloadUrl, setDownloadUrl] = useState(null);
   const [isCheckingPayment, setIsCheckingPayment] = useState(false);
+
+  // --- Диагностика переменных окружения Supabase ---
+  useEffect(() => {
+    console.log('🔍 Проверка переменных окружения:');
+    console.log('VITE_SUPABASE_URL:', import.meta.env.VITE_SUPABASE_URL ? '✅ определён' : '❌ не определён');
+    console.log('VITE_SUPABASE_ANON_KEY:', import.meta.env.VITE_SUPABASE_ANON_KEY ? '✅ определён' : '❌ не определён');
+    
+    if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
+      console.error('🚨 Переменные окружения Supabase не заданы! Проверь настройки Vercel или файл .env');
+    }
+  }, []);
 
   // Создание заказа и переход к имитации оплаты
   const handleBuyClick = async () => {
@@ -44,14 +51,16 @@ export default function App() {
         .select();
 
       if (error) {
-        console.log('Ошибка БД:', error.message);
-        // В реальном проекте здесь можно показать уведомление пользователю
+        console.error('❌ Ошибка БД при создании заказа:', error.message);
+        // В реальном проекте можно показать уведомление пользователю
+        // Пока просто покажем ошибку и вернёмся на главную
         setView('home');
         return;
       }
 
       if (data && data.length > 0) {
         setCurrentOrderId(data[0].id);
+        console.log('✅ Заказ создан, ID:', data[0].id);
       }
       
       // Имитируем запрос к нашему Node.js API (1.5 секунды)
@@ -59,7 +68,7 @@ export default function App() {
         setView('yookassa_mock');
       }, 1500);
     } catch (err) {
-      console.error('Неожиданная ошибка:', err);
+      console.error('🔥 Неожиданная ошибка при создании заказа:', err);
       setView('home');
     }
   };
@@ -76,9 +85,13 @@ export default function App() {
         .eq('id', currentOrderId);
 
       if (error) {
-        console.error('Ошибка обновления статуса заказа:', error.message);
+        console.error('❌ Ошибка обновления статуса заказа:', error.message);
         // Даже при ошибке можно показать success, но лучше уведомить пользователя
+      } else {
+        console.log('✅ Статус заказа обновлён на paid');
       }
+    } else {
+      console.warn('⚠️ currentOrderId отсутствует при оплате');
     }
 
     // Переходим на страницу успеха
@@ -100,20 +113,26 @@ export default function App() {
             .single();
 
           if (error) {
-            console.error('Ошибка проверки статуса:', error.message);
+            console.error('❌ Ошибка проверки статуса:', error.message);
             return;
           }
 
           if (data?.status === 'paid') {
-            // Генерируем ссылку на файл гайда
-            const url = getDownloadLink('pixar_guide.pdf'); // Замените на актуальное имя файла
-            setDownloadUrl(url);
+            console.log('✅ Заказ оплачен, генерируем временную ссылку');
+            // Используем импортированную функцию getDownloadLink (асинхронную)
+            try {
+              const url = await getDownloadLink('pixar_guide.pdf'); // замените на актуальное имя файла
+              setDownloadUrl(url);
+            } catch (linkErr) {
+              console.error('❌ Ошибка получения ссылки на скачивание:', linkErr);
+              // Можно показать сообщение пользователю, что ссылка временно недоступна
+            }
           } else {
-            console.log('Статус заказа не оплачен:', data?.status);
+            console.log('⏳ Статус заказа не оплачен:', data?.status);
             // Можно показать сообщение об ошибке или предложить обратиться в поддержку
           }
         } catch (err) {
-          console.error('Неожиданная ошибка при проверке оплаты:', err);
+          console.error('🔥 Неожиданная ошибка при проверке оплаты:', err);
         } finally {
           setIsCheckingPayment(false);
         }
